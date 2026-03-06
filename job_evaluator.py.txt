@@ -1,0 +1,273 @@
+import streamlit as st
+import pandas as pd
+import io
+
+# ==========================================
+# 1. FACTOR PLAN & DEFINITIONS DICTIONARY
+# ==========================================
+FACTOR_PLAN = {
+    "Education": {
+        "max_points": 250,
+        "levels": [
+            {"level": "Level 1: No Formal Education", "points": 0, "desc": "Ability to read and write basic instructions, but no formal schooling required."},
+            {"level": "Level 2: Primary School", "points": 20, "desc": "Completion of primary/elementary education. Basic literacy and numeracy required."},
+            {"level": "Level 3: Some High School", "points": 40, "desc": "Partial completion of high school. Ability to comprehend standard operating procedures."},
+            {"level": "Level 4: High School Diploma", "points": 60, "desc": "High School Diploma or equivalent (GED). Standard comprehension of written and mathematical data."},
+            {"level": "Level 5: Vocational/Trade Certificate", "points": 80, "desc": "High school plus up to 1 year of specialized vocational or trade training."},
+            {"level": "Level 6: Associate's Degree", "points": 110, "desc": "A 2-year college degree or advanced technical diploma requiring substantial study."},
+            {"level": "Level 7: Bachelor's Degree", "points": 140, "desc": "A 4-year university degree (BA, BS) providing foundational knowledge in a specific discipline."},
+            {"level": "Level 8: Bachelor's + Prof. Cert", "points": 160, "desc": "A Bachelor's degree supplemented by a major professional certification (e.g., CPA, PHR)."},
+            {"level": "Level 9: Master's Degree", "points": 190, "desc": "An advanced postgraduate degree (MA, MS, MBA) indicating mastery in a specialized field."},
+            {"level": "Level 10: Master's + Prof. Cert", "points": 210, "desc": "A Master's degree plus highly specialized licensure or dual-master's indicating broad expertise."},
+            {"level": "Level 11: ABD / Advanced Post-Grad", "points": 230, "desc": "All But Dissertation (ABD) or fellowship-level training beyond a Master's degree."},
+            {"level": "Level 12: Doctorate / Post-Doc", "points": 250, "desc": "Terminal degree (Ph.D., MD, JD) or Post-Doctoral fellowship requiring original research and ultimate subject matter expertise."}
+        ]
+    },
+    "Experience": {
+        "max_points": 250,
+        "levels": [
+            {"level": "Level 1: < 1 Month", "points": 0, "desc": "No prior experience required. Job can be learned on the first few days."},
+            {"level": "Level 2: 1 to 6 Months", "points": 20, "desc": "Requires a brief learning period to become familiar with basic company workflows and tools."},
+            {"level": "Level 3: 6 Months to 1 Year", "points": 40, "desc": "Requires time to experience a full annual cycle or master varied operational tasks."},
+            {"level": "Level 4: 1 to 2 Years", "points": 60, "desc": "Requires enough time to work independently and troubleshoot common issues without constant supervision."},
+            {"level": "Level 5: 2 to 3 Years", "points": 80, "desc": "Solid foundation in the field. Capable of handling non-routine issues and guiding junior staff."},
+            {"level": "Level 6: 3 to 5 Years", "points": 110, "desc": "Full professional competency. Can manage complex workflows and contribute to process improvements."},
+            {"level": "Level 7: 5 to 7 Years", "points": 140, "desc": "Advanced level. Requires deep operational knowledge, project management, and cross-functional savvy."},
+            {"level": "Level 8: 7 to 10 Years", "points": 160, "desc": "Subject matter expert. Capable of leading major initiatives and solving systemic organizational problems."},
+            {"level": "Level 9: 10 to 12 Years", "points": 190, "desc": "Senior leadership experience. Deep industry insight required to steer long-term departmental strategy."},
+            {"level": "Level 10: 12 to 15 Years", "points": 210, "desc": "Executive-level experience. Extensive track record of managing massive scale, risk, and organizational design."},
+            {"level": "Level 11: 15 to 20 Years", "points": 230, "desc": "Senior Executive/C-Suite level. Decades of compounding industry knowledge and strategic foresight."},
+            {"level": "Level 12: Over 20 Years", "points": 250, "desc": "Pinnacle industry veteran. World-class expertise required to govern multinational or immensely complex entities."}
+        ]
+    },
+    "Special Training": {
+        "max_points": 100,
+        "levels": [
+            {"level": "Level 1: Basic Orientation", "points": 0, "desc": "Standard day-one onboarding."},
+            {"level": "Level 2: Minor On-the-Job Training", "points": 15, "desc": "A few days learning specific software or machinery."},
+            {"level": "Level 3: Brief Certification", "points": 30, "desc": "Requires a short, formal training course (e.g., First Aid, Forklift)."},
+            {"level": "Level 4: Moderate Technical Training", "points": 45, "desc": "Weeks or months of specific technical courses (e.g., basic coding, advanced excel)."},
+            {"level": "Level 5: Specialized Licensure", "points": 65, "desc": "Requires passing formal, external board exams to legally operate."},
+            {"level": "Level 6: Advanced Specialized Training", "points": 85, "desc": "Continuous, rigorous technical updating and advanced certifications."},
+            {"level": "Level 7: Pinnacle Niche Expertise", "points": 100, "desc": "Rare, highly specialized training possessed by very few in the industry."}
+        ]
+    },
+    "Mental Effort": {
+        "max_points": 100,
+        "levels": [
+            {"level": "Level 1: Routine/Repetitive", "points": 10, "desc": "Tasks are highly repetitive with minimal mental strain."},
+            {"level": "Level 2: Minor Variation", "points": 25, "desc": "Some shifting between easy tasks, requiring occasional focus."},
+            {"level": "Level 3: Moderate Concentration", "points": 40, "desc": "Requires sustained attention to prevent moderate errors."},
+            {"level": "Level 4: Complex Analysis", "points": 55, "desc": "Frequent requirement to analyze data, find patterns, or troubleshoot."},
+            {"level": "Level 5: High Mental Strain", "points": 70, "desc": "Constant shifting of priorities, managing complex simultaneous variables."},
+            {"level": "Level 6: Intense Strategic Focus", "points": 85, "desc": "Requires deep, prolonged concentration on ambiguous, high-stakes issues."},
+            {"level": "Level 7: Extreme Cognitive Load", "points": 100, "desc": "Unrelenting requirement for visionary thinking, rapid processing of critical data."}
+        ]
+    },
+    "Physical Effort": {
+        "max_points": 50,
+        "levels": [
+            {"level": "Level 1: Sedentary", "points": 5, "desc": "Desk work, minimal lifting (under 10 lbs)."},
+            {"level": "Level 2: Light Activity", "points": 10, "desc": "Occasional walking, standing, or light lifting."},
+            {"level": "Level 3: Moderate Activity", "points": 15, "desc": "Frequent walking or lifting up to 25 lbs."},
+            {"level": "Level 4: Sustained Physical Activity", "points": 25, "desc": "Continuous standing, moving, or operating machinery."},
+            {"level": "Level 5: Heavy Labor", "points": 35, "desc": "Frequent lifting of heavy objects (up to 50 lbs), bending, and stooping."},
+            {"level": "Level 6: Intense Physical Strain", "points": 45, "desc": "Rigorous, sustained physical exhaustion or lifting over 75 lbs."},
+            {"level": "Level 7: Extreme Physical Demand", "points": 50, "desc": "Peak physical exertion required constantly in dangerous or brutal conditions."}
+        ]
+    },
+    "Problem Solving": {
+        "max_points": 150,
+        "levels": [
+            {"level": "Level 1: Strict Routine", "points": 15, "desc": "Solutions are obvious and covered by strict rules."},
+            {"level": "Level 2: Pattern Recognition", "points": 35, "desc": "Choosing between known solutions based on precedent."},
+            {"level": "Level 3: Applied Reasoning", "points": 60, "desc": "Applying standard principles to adapt to new situations."},
+            {"level": "Level 4: Analytical Troubleshooting", "points": 85, "desc": "Investigating unknown variables to devise custom solutions."},
+            {"level": "Level 5: Systemic Solutions", "points": 110, "desc": "Solving complex, multi-departmental issues where no clear policy exists."},
+            {"level": "Level 6: Innovative Strategy", "points": 130, "desc": "Creating entirely new concepts, products, or major process overhauls."},
+            {"level": "Level 7: Path-finding / Visionary", "points": 150, "desc": "Charting course in totally uncharted territory; paradigm-shifting innovation."}
+        ]
+    },
+    "Communication": {
+        "max_points": 100,
+        "levels": [
+            {"level": "Level 1: Basic Exchange", "points": 10, "desc": "Simple yielding and receiving of facts internally."},
+            {"level": "Level 2: Routine Explanation", "points": 25, "desc": "Explaining standard policies or procedures to staff or clients."},
+            {"level": "Level 3: Advisory/Persuasive", "points": 40, "desc": "Influencing others or providing specialized advice and guidance."},
+            {"level": "Level 4: Difficult Negotiations", "points": 55, "desc": "Resolving conflicts, negotiating contracts, handling sensitive HR issues."},
+            {"level": "Level 5: Executive Presentation", "points": 70, "desc": "Presenting complex, high-stakes information to boards or major stakeholders."},
+            {"level": "Level 6: External Diplomacy", "points": 85, "desc": "Representing the company to media, regulators, or top-tier partners."},
+            {"level": "Level 7: Global High-Stakes", "points": 100, "desc": "Masterful negotiation deciding the survival or massive scale of the enterprise."}
+        ]
+    },
+    "Responsibility - Human": {
+        "max_points": 150,
+        "levels": [
+            {"level": "Level 1: Individual Contributor", "points": 0, "desc": "No supervisory responsibilities."},
+            {"level": "Level 2: Peer Guide / Mentor", "points": 20, "desc": "Informal guidance to newer employees; no direct reports."},
+            {"level": "Level 3: Team Lead", "points": 45, "desc": "Assigns work and monitors a small group (1-5), but not a full manager."},
+            {"level": "Level 4: Frontline Manager", "points": 70, "desc": "Directs a team (5-15), handles performance reviews, hiring/firing input."},
+            {"level": "Level 5: Department Head", "points": 95, "desc": "Manages other managers. Responsible for a whole functional department (15-50+)."},
+            {"level": "Level 6: Division Director", "points": 125, "desc": "Responsible for large segments of the workforce (100-500+)."},
+            {"level": "Level 7: Enterprise Leader", "points": 150, "desc": "Ultimate workforce responsibility, managing thousands of employees globally."}
+        ]
+    },
+    "Responsibility - Resources": {
+        "max_points": 150,
+        "levels": [
+            {"level": "Level 1: Small Tools / Office Supplies", "points": 10, "desc": "Care of basic, inexpensive items."},
+            {"level": "Level 2: Standard Equipment", "points": 30, "desc": "Responsibility for individual laptops, standard tools, or small inventory."},
+            {"level": "Level 3: Valuable Assets", "points": 55, "desc": "Care of expensive machinery, vehicles, or sensitive proprietary data."},
+            {"level": "Level 4: Facility/Fleet Management", "points": 80, "desc": "Managing whole facilities, large IT systems, or fleets of vehicles."},
+            {"level": "Level 5: Major Infrastructure", "points": 105, "desc": "Directing massive physical or technological infrastructures (e.g., factories, data centers)."},
+            {"level": "Level 6: Regional Asset Portfolio", "points": 130, "desc": "Overseeing vast networks of high-value resources across regions."},
+            {"level": "Level 7: Enterprise Asset Control", "points": 150, "desc": "Ultimate control and risk mitigation for the company's entire physical/intellectual IP footprint."}
+        ]
+    },
+    "Responsibility - Finance": {
+        "max_points": 200,
+        "levels": [
+            {"level": "Level 1: No Budget", "points": 0, "desc": "No financial authority."},
+            {"level": "Level 2: Petty Cash / Small Spending", "points": 30, "desc": "Minor purchasing authority (e.g., office supplies, minor T&E)."},
+            {"level": "Level 3: Team Budget Monitoring", "points": 60, "desc": "Tracking expenses against a strict pre-determined departmental budget."},
+            {"level": "Level 4: Department P&L Control", "points": 90, "desc": "Authority over significant departmental budgets, approving major expenditures."},
+            {"level": "Level 5: Division P&L Ownership", "points": 125, "desc": "Full accountability for revenue and expenses for a major business unit ($MM)."},
+            {"level": "Level 6: Corporate Financial Strategy", "points": 160, "desc": "Guiding massive financial investments, M&A, and hundred-million-dollar budgets."},
+            {"level": "Level 7: Multi-Billion Dollar Enterprise", "points": 200, "desc": "Ultimate fiscal responsibility; making decisions impacting billions in shareholder value."}
+        ]
+    }
+}
+
+# ==========================================
+# 2. HELPER FUNCTIONS
+# ==========================================
+def calculate_grade(total_points):
+    """
+    Calculates Job Grade (I to XX) based on total points.
+    Grade I: 0-100. Grade XX: 1401-1500.
+    18 Grades in between distributed at ~72 point increments.
+    """
+    if total_points <= 100: return "I"
+    if total_points >= 1401: return "XX"
+    
+    # 72 point increments starting from 101
+    grade_thresholds = [
+        (100, "I"), (172, "II"), (244, "III"), (316, "IV"), (388, "V"),
+        (460, "VI"), (532, "VII"), (604, "VIII"), (676, "IX"), (748, "X"),
+        (820, "XI"), (892, "XII"), (964, "XIII"), (1036, "XIV"), (1108, "XV"),
+        (1180, "XVI"), (1252, "XVII"), (1324, "XVIII"), (1400, "XIX"), (1500, "XX")
+    ]
+    
+    for i in range(len(grade_thresholds) - 1):
+        if total_points > grade_thresholds[i][0] and total_points <= grade_thresholds[i+1][0]:
+            return grade_thresholds[i+1][1]
+    
+    return "Unknown"
+
+def generate_csv(data_dict):
+    """Generates a CSV file from the evaluation dictionary."""
+    df = pd.DataFrame([data_dict])
+    return df.to_csv(index=False).encode('utf-8')
+
+# ==========================================
+# 3. STREAMLIT FRONTEND / APP STRUCTURE
+# ==========================================
+st.set_page_config(page_title="Job Evaluation Tool", page_icon="⚖️", layout="wide")
+
+st.title("⚖️ Corporate Job Evaluation Tool")
+st.markdown("Determine accurate job grades using the standardized Point Factor Method.")
+
+# --- SIDEBAR: Metadata ---
+st.sidebar.header("📋 Job Information")
+job_title = st.sidebar.text_input("Job Title", placeholder="e.g., Senior Software Engineer")
+department = st.sidebar.text_input("Department", placeholder="e.g., Engineering")
+evaluator = st.sidebar.text_input("Evaluator Name", placeholder="e.g., Jane Doe, HR")
+
+st.sidebar.markdown("---")
+st.sidebar.info("Select the appropriate level for each of the 10 factors in the main panel. The total score and job grade will calculate automatically.")
+
+# --- INITIALIZE SESSION STATE FOR SCORES ---
+if 'factor_scores' not in st.session_state:
+    st.session_state.factor_scores = {factor: 0 for factor in FACTOR_PLAN.keys()}
+if 'factor_selections' not in st.session_state:
+    st.session_state.factor_selections = {factor: "" for factor in FACTOR_PLAN.keys()}
+
+# --- MAIN PANEL: Live Dashboard ---
+total_score = sum(st.session_state.factor_scores.values())
+predicted_grade = calculate_grade(total_score)
+
+dash_col1, dash_col2, dash_col3 = st.columns(3)
+with dash_col1:
+    st.metric(label="Total Points (Max 1500)", value=f"{total_score} pts")
+with dash_col2:
+    st.metric(label="Predicted Job Grade", value=f"Grade {predicted_grade}")
+with dash_col3:
+    progress_pct = min(total_score / 1500.0, 1.0)
+    st.progress(progress_pct, text="Scoring Progress")
+
+st.markdown("---")
+
+# --- MAIN PANEL: Factor Selection Tabs ---
+tabs = st.tabs(list(FACTOR_PLAN.keys()))
+
+for i, (factor_name, factor_data) in enumerate(FACTOR_PLAN.items()):
+    with tabs[i]:
+        st.subheader(f"{factor_name} (Max {factor_data['max_points']} pts)")
+        
+        # Create a list of options formatted nicely
+        options = [lvl["level"] for lvl in factor_data["levels"]]
+        
+        # Dropdown selection
+        selected_level = st.selectbox(
+            f"Select level for {factor_name}:",
+            options=options,
+            key=f"select_{factor_name}"
+        )
+        
+        # Find the selected item dictionary
+        selected_item = next(item for item in factor_data["levels"] if item["level"] == selected_level)
+        
+        # Update session state (which triggers a rerun naturally in Streamlit)
+        st.session_state.factor_scores[factor_name] = selected_item["points"]
+        st.session_state.factor_selections[factor_name] = selected_level
+        
+        # Display the definition block and points
+        st.info(f"**Definition:** {selected_item['desc']}")
+        st.success(f"**Assigned Points:** {selected_item['points']}")
+
+# --- FOOTER: Summary & Export ---
+st.markdown("---")
+st.header("📄 Final Evaluation Report")
+
+if job_title:
+    st.write(f"**Evaluating:** {job_title} | **Dept:** {department} | **By:** {evaluator}")
+
+# Prepare data for display and export
+report_data = {
+    "Job Title": job_title,
+    "Department": department,
+    "Evaluator": evaluator,
+    "Total Score": total_score,
+    "Job Grade": predicted_grade
+}
+# Append factor details
+for factor, level in st.session_state.factor_selections.items():
+    report_data[factor] = level
+    report_data[f"{factor} Points"] = st.session_state.factor_scores[factor]
+
+# Display as a clean table
+df_report = pd.DataFrame(list(st.session_state.factor_selections.items()), columns=["Factor", "Selected Level"])
+df_report["Points"] = df_report["Factor"].map(st.session_state.factor_scores)
+
+col_a, col_b = st.columns([2, 1])
+with col_a:
+    st.dataframe(df_report, use_container_width=True, hide_index=True)
+with col_b:
+    csv = generate_csv(report_data)
+    st.download_button(
+        label="⬇️ Download CSV Report",
+        data=csv,
+        file_name=f"Job_Eval_{job_title.replace(' ', '_') if job_title else 'Draft'}.csv",
+        mime='text/csv',
+        use_container_width=True
+    )
